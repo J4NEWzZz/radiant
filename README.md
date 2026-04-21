@@ -1,4 +1,4 @@
-# 🌟 Radiant
+# Radiant 💎
 
 <p align="center">
   <b>Learn technical concepts in 2 minutes a day.</b><br/>
