@@ -1,0 +1,41 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <linearGradient id="crown" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF5555"/>
+      <stop offset="100%" stop-color="#C41C1C"/>
+    </linearGradient>
+    <linearGradient id="pav" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E03030"/>
+      <stop offset="100%" stop-color="#7F1D1D"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sparkle rays -->
+  <line x1="16" y1="0.5"  x2="16"   y2="3.2"  stroke="#FF5555" stroke-width="1.6" stroke-linecap="round"/>
+  <line x1="29.5" y1="6"  x2="27.8" y2="7.6"  stroke="#FF4444" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="2.5"  y1="6"  x2="4.2"  y2="7.6"  stroke="#FF4444" stroke-width="1.3" stroke-linecap="round"/>
+
+  <!-- Crown (top trapezoid) -->
+  <path d="M9.5 5.5 L22.5 5.5 L27.5 14 L4.5 14 Z" fill="url(#crown)"/>
+
+  <!-- Table facet highlight -->
+  <path d="M11.5 5.5 L20.5 5.5 L23 10.5 L9 10.5 Z" fill="rgba(255,255,255,0.18)"/>
+
+  <!-- Pavilion (bottom triangle) -->
+  <path d="M4.5 14 L27.5 14 L16 30.5 Z" fill="url(#pav)"/>
+
+  <!-- Left pavilion highlight -->
+  <path d="M4.5 14 L16 14 L16 30.5 Z" fill="rgba(255,255,255,0.05)"/>
+
+  <!-- Crown facet lines -->
+  <line x1="11.5" y1="5.5"  x2="4.5"  y2="14"   stroke="rgba(255,255,255,0.5)"  stroke-width="0.6"/>
+  <line x1="20.5" y1="5.5"  x2="27.5" y2="14"   stroke="rgba(255,255,255,0.5)"  stroke-width="0.6"/>
+  <line x1="9"    y1="10.5" x2="4.5"  y2="14"   stroke="rgba(255,255,255,0.28)" stroke-width="0.5"/>
+  <line x1="23"   y1="10.5" x2="27.5" y2="14"   stroke="rgba(255,255,255,0.28)" stroke-width="0.5"/>
+  <line x1="16"   y1="5.5"  x2="16"   y2="14"   stroke="rgba(255,255,255,0.2)"  stroke-width="0.5"/>
+
+  <!-- Pavilion facet lines -->
+  <line x1="16"   y1="14"  x2="16"   y2="30.5" stroke="rgba(255,255,255,0.13)" stroke-width="0.5"/>
+  <line x1="4.5"  y1="14"  x2="16"   y2="23"   stroke="rgba(255,255,255,0.13)" stroke-width="0.5"/>
+  <line x1="27.5" y1="14"  x2="16"   y2="23"   stroke="rgba(255,255,255,0.13)" stroke-width="0.5"/>
+</svg>
