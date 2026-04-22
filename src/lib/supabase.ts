@@ -1,16 +1,21 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseUrl    = import.meta.env.VITE_SUPABASE_URL     as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-// Create client only when env vars are present — avoids crash on missing .env
 export const supabase: SupabaseClient = isSupabaseConfigured
-  ? createClient(supabaseUrl!, supabaseAnonKey!)
+  ? createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        persistSession:   true,   // keep session in localStorage across reloads
+        autoRefreshToken: true,   // silently refresh token before it expires
+        detectSessionInUrl: true, // handle magic-link / OAuth redirects
+      },
+    })
   : createClient('https://placeholder.supabase.co', 'placeholder');
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface UserProfile {
   id: string;
@@ -22,10 +27,11 @@ export interface UserProfile {
   completed_lessons: string[];
   achievements: string[];
   last_lesson_date: string | null;
+  lesson_dates: string[] | null; // null when column not yet added via migration
   created_at: string;
 }
 
-// ── Profile helpers ────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 export async function fetchProfile(userId: string): Promise<UserProfile | null> {
   if (!isSupabaseConfigured) return null;
@@ -34,46 +40,59 @@ export async function fetchProfile(userId: string): Promise<UserProfile | null> 
     .select('*')
     .eq('id', userId)
     .single();
-  if (error) { console.error('fetchProfile:', error); return null; }
+  if (error) {
+    // PGRST116 = row not found — not an error we need to log loudly
+    if (error.code !== 'PGRST116') console.error('fetchProfile:', error.message);
+    return null;
+  }
   return data as UserProfile;
 }
 
 export async function createProfile(userId: string, email: string): Promise<UserProfile | null> {
   if (!isSupabaseConfigured) return null;
-  const newProfile = {
-    id: userId,
-    email,
-    username: null,
-    xp: 0,
-    streak: 0,
-    selected_areas: [],
-    completed_lessons: [],
-    achievements: ['radiant-starter'],
-    last_lesson_date: null,
-  };
-  const { data, error } = await supabase
+
+  // Try a fresh insert first
+  const { data: inserted, error: insertErr } = await supabase
     .from('profiles')
-    .insert(newProfile)
+    .insert({ id: userId, email, achievements: ['radiant-starter'] })
     .select()
     .single();
-  if (error) { console.error('createProfile:', error); return null; }
-  return data as UserProfile;
+
+  if (!insertErr) return inserted as UserProfile;
+
+  // Row already exists (e.g. created by DB trigger) — fetch it
+  const { data: existing, error: fetchErr } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (fetchErr) { console.error('createProfile (fetch fallback):', fetchErr.message); return null; }
+  return existing as UserProfile;
 }
 
+/**
+ * Save arbitrary profile fields. Uses UPSERT so a missing profile row is
+ * created automatically (handles cases where the DB trigger didn't fire).
+ * Columns not present in `patch` are untouched (or get their DB default on
+ * first insert).
+ *
+ * Returns true on success, false on error (error is logged to console).
+ */
 export async function updateProfile(
   userId: string,
-  patch: Partial<Omit<UserProfile, 'id' | 'created_at'>>
-): Promise<void> {
-  if (!isSupabaseConfigured) return;
+  patch: Partial<Omit<UserProfile, 'id' | 'created_at'>>,
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
   const { error } = await supabase
     .from('profiles')
-    .update(patch)
-    .eq('id', userId);
-  if (error) console.error('updateProfile:', error);
+    .upsert({ id: userId, ...patch }, { onConflict: 'id' });
+  if (error) { console.error('updateProfile:', error.message); return false; }
+  return true;
 }
 
 /*
- * ── Required Supabase setup ──────────────────────────────────────────────
+ * ── Required Supabase setup ───────────────────────────────────────────────────
  *
  * 1. Create a Supabase project at https://supabase.com
  * 2. Copy .env.example to .env and fill in:
@@ -92,10 +111,9 @@ export async function updateProfile(
  *     completed_lessons text[] default '{}',
  *     achievements text[] default '{"radiant-starter"}',
  *     last_lesson_date date,
+ *     lesson_dates text[] default '{}',
  *     created_at timestamp with time zone default now()
  *   );
- *
- *   alter table public.profiles enable row level security;
  *
  *   alter table public.profiles enable row level security;
  *
@@ -105,9 +123,10 @@ export async function updateProfile(
  *   create policy "Users can update own profile"
  *     on public.profiles for update using (auth.uid() = id);
  *
- *   -- Trigger: auto-create a profile row whenever a user signs up.
- *   -- This fires server-side so it works even when email confirmation is
- *   -- required (no client session yet at signup time).
+ *   create policy "Users can insert own profile"
+ *     on public.profiles for insert with check (auth.uid() = id);
+ *
+ *   -- Trigger: auto-create a profile row whenever a user signs up
  *   create or replace function public.handle_new_user()
  *   returns trigger as $$
  *   begin
@@ -122,6 +141,11 @@ export async function updateProfile(
  *     after insert on auth.users
  *     for each row execute procedure public.handle_new_user();
  *
- *   -- Optional: disable email confirmation for local dev
- *   -- Supabase dashboard → Authentication → Settings → "Confirm email" → off
+ * 4. If your table already exists, add the lesson_dates column:
+ *
+ *   alter table public.profiles
+ *     add column if not exists lesson_dates text[] default '{}';
+ *
+ * 5. Disable email confirmation for local dev (optional):
+ *    Supabase dashboard → Authentication → Settings → "Confirm email" → off
  */

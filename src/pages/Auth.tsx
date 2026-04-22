@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { RadiantLogo } from '../components/RadiantLogo';
+import { WarningIcon } from '../components/AreaIcon';
 
 type Tab = 'signup' | 'login';
 
@@ -32,50 +33,34 @@ function getStrength(pw: string): StrengthResult {
 
   if (!pw) return { score: 0, label: '', color: '', hint: '', criteria };
 
-  // ── Raw points ──────────────────────────────────────────────────────────────
   let pts = 0;
-
-  // Length: tiered bonus (more weight than anything else)
   if (pw.length >= 6)  pts += 1;
   if (pw.length >= 8)  pts += 1;
   if (pw.length >= 10) pts += 1;
   if (pw.length >= 12) pts += 1;
-  if (pw.length >= 16) pts += 1;   // max 5 pts from length
-
-  // Character variety
+  if (pw.length >= 16) pts += 1;
   if (/[a-z]/.test(pw)) pts += 0.5;
   if (/[A-Z]/.test(pw)) pts += 1;
   if (/[0-9]/.test(pw)) pts += 1;
-  if (/[^A-Za-z0-9]/.test(pw)) pts += 1.5;   // max 4 pts from variety
+  if (/[^A-Za-z0-9]/.test(pw)) pts += 1.5;
 
-  // ── Penalties ───────────────────────────────────────────────────────────────
   let penaltyHint = '';
-
-  // Common passwords: hard cap
   if (COMMON_PASSWORDS.has(pw.toLowerCase())) {
     pts = Math.min(pts, 2);
     penaltyHint = 'Too common';
-  }
-  // All same character
-  else if (/^(.)\1+$/.test(pw)) {
+  } else if (/^(.)\1+$/.test(pw)) {
     pts = Math.min(pts, 2);
     penaltyHint = 'Avoid repeating the same character';
-  }
-  // 3+ repeated chars in a row
-  else if (/(.)\1{2,}/.test(pw)) {
+  } else if (/(.)\1{2,}/.test(pw)) {
     pts -= 2;
     if (!penaltyHint) penaltyHint = 'Avoid too many repeated characters';
-  }
-  // Keyboard sequences / numeric runs
-  else if (/(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz|012|123|234|345|456|567|678|789)/i.test(pw)) {
+  } else if (/(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz|012|123|234|345|456|567|678|789)/i.test(pw)) {
     pts -= 1.5;
     if (!penaltyHint) penaltyHint = 'Avoid sequential patterns';
   }
 
   pts = Math.max(0, pts);
 
-  // ── Score 0–4 ───────────────────────────────────────────────────────────────
-  // 0-2 → 1 (Weak), 3-4 → 2 (Fair), 5-6 → 3 (Good), 7+ → 4 (Strong)
   let score: 0 | 1 | 2 | 3 | 4 = 0;
   if (pts >= 7) score = 4;
   else if (pts >= 5) score = 3;
@@ -91,7 +76,6 @@ function getStrength(pw: string): StrengthResult {
 
   const { label, color } = map[score] ?? { label: 'Weak', color: '#E53E3E' };
 
-  // ── Hint ────────────────────────────────────────────────────────────────────
   let hint = '';
   if (penaltyHint) {
     hint = penaltyHint;
@@ -102,7 +86,6 @@ function getStrength(pw: string): StrengthResult {
   } else if (score === 4) {
     hint = 'Excellent!';
   } else {
-    // Find first unmet variety criterion
     if (!/[A-Z]/.test(pw)) hint = 'Add an uppercase letter';
     else if (!/[0-9]/.test(pw)) hint = 'Add a number';
     else if (!/[^A-Za-z0-9]/.test(pw)) hint = 'Add a special character (!@#$...)';
@@ -153,7 +136,6 @@ function PasswordField({
         {label}
       </label>
 
-      {/* Input row */}
       <div style={{ position: 'relative' }}>
         <input
           type={visible ? 'text' : 'password'}
@@ -163,9 +145,8 @@ function PasswordField({
           onChange={e => onChange(e.target.value)}
           autoComplete={autoComplete}
           required
-          style={{ paddingRight: '44px' }}
+          style={{ paddingRight: '48px' }}
         />
-        {/* Eye toggle */}
         <button
           type="button"
           onClick={() => setVisible(v => !v)}
@@ -173,8 +154,9 @@ function PasswordField({
             position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
             background: 'none', border: 'none', cursor: 'pointer',
             color: visible ? 'var(--accent)' : 'var(--text-muted)',
-            display: 'flex', alignItems: 'center', padding: '2px',
-            transition: 'color 0.2s',
+            display: 'flex', alignItems: 'center', padding: '4px',
+            transition: 'color 0.2s', minWidth: '28px', minHeight: '28px',
+            justifyContent: 'center',
           }}
           title={visible ? 'Hide password' : 'Show password'}
         >
@@ -182,10 +164,8 @@ function PasswordField({
         </button>
       </div>
 
-      {/* Strength meter (signup only) */}
       {showStrength && value.length > 0 && strength && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-          {/* Bars */}
           <div style={{ display: 'flex', gap: '4px' }}>
             {[1, 2, 3, 4].map(i => (
               <div key={i} style={{
@@ -198,22 +178,17 @@ function PasswordField({
               }} />
             ))}
           </div>
-          {/* Label + hint */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{
               fontSize: '11px', fontWeight: '600', fontFamily: 'var(--font-mono)',
-              color: strength.color,
-              transition: 'color 0.3s',
+              color: strength.color, transition: 'color 0.3s',
             }}>
               {strength.label}
             </span>
-            <span style={{
-              fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
-            }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
               {strength.hint}
             </span>
           </div>
-          {/* Criteria checklist */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
             {strength.criteria.map(c => (
               <span key={c.label} style={{
@@ -223,11 +198,9 @@ function PasswordField({
                 display: 'flex', alignItems: 'center', gap: '3px',
               }}>
                 <span style={{
-                  display: 'inline-block', width: '8px', height: '8px',
-                  borderRadius: '50%',
+                  display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
                   background: c.met ? '#22C55E' : 'var(--border-light)',
-                  transition: 'background 0.25s',
-                  flexShrink: 0,
+                  transition: 'background 0.25s', flexShrink: 0,
                 }} />
                 {c.label}
               </span>
@@ -288,9 +261,6 @@ export function Auth() {
     if (err) {
       setError(err);
     } else if (tab === 'signup') {
-      // If email confirmation is required, we stay here and show the message.
-      // If confirmation is disabled, the store navigated away already and
-      // this code never runs (component unmounted).
       setSuccess('Account created! Check your email to confirm, then sign in.');
       switchTab('login');
       setEmail('');
@@ -301,9 +271,13 @@ export function Auth() {
 
   return (
     <div style={{
-      minHeight: '100vh', background: 'var(--bg)',
-      display: 'flex', flexDirection: 'column',
-      position: 'relative', overflow: 'hidden',
+      minHeight: '100vh',
+      background: 'var(--bg)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
       {/* Grid */}
       <div className="grid-bg" style={{
@@ -319,26 +293,27 @@ export function Auth() {
         pointerEvents: 'none',
       }} />
 
-      {/* Header */}
+      {/* Single centered column — logo + form share the same max-width */}
       <div style={{
         position: 'relative', zIndex: 1,
-        padding: '26px 24px 0', maxWidth: '480px', margin: '0 auto', width: '100%',
+        width: '100%', maxWidth: '400px',
+        padding: '0 20px',
+        display: 'flex', flexDirection: 'column',
+        flex: 1,
       }}>
-        <button
-          onClick={() => setScreen('landing')}
-          style={{ all: 'unset', cursor: 'pointer' }}
-        >
-          <RadiantLogo size={28} textSize={16} />
-        </button>
-      </div>
 
-      {/* Form */}
-      <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: '32px 24px 48px', position: 'relative', zIndex: 1,
-      }}>
-        <div style={{ width: '100%', maxWidth: '360px' }}>
+        {/* Logo row — now inside the same column as the form */}
+        <div style={{ paddingTop: '28px', paddingBottom: '0' }}>
+          <button onClick={() => setScreen('landing')} style={{ all: 'unset', cursor: 'pointer' }}>
+            <RadiantLogo size={28} textSize={16} />
+          </button>
+        </div>
+
+        {/* Vertically centered content */}
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          justifyContent: 'center', paddingTop: '20px', paddingBottom: '48px',
+        }}>
 
           {/* Supabase not configured warning */}
           {!isSupabaseConfigured && (
@@ -347,8 +322,9 @@ export function Auth() {
               background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.22)',
               borderRadius: '10px',
             }}>
-              <div style={{ fontWeight: '600', fontSize: '12px', color: 'var(--amber)', marginBottom: '4px' }}>
-                ⚠️ Supabase not connected
+              <div style={{ fontWeight: '600', fontSize: '12px', color: 'var(--amber)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <WarningIcon size={14} color="var(--amber)" strokeWidth={1.6} />
+                Supabase not connected
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.5', fontFamily: 'var(--font-mono)' }}>
                 Copy <strong style={{ color: 'var(--text-secondary)' }}>.env.example</strong> → <strong style={{ color: 'var(--text-secondary)' }}>.env</strong>, add credentials, restart dev server.
@@ -356,7 +332,7 @@ export function Auth() {
             </div>
           )}
 
-          {/* Heading */}
+          {/* Heading — centered, same column width as form */}
           <div className="anim-slide-up" style={{ textAlign: 'center', marginBottom: '28px' }}>
             {pendingLessonId && (
               <div style={{
@@ -369,12 +345,14 @@ export function Auth() {
               </div>
             )}
             <h1 style={{
-              fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: '800',
-              letterSpacing: '-0.5px', lineHeight: '1.1', marginBottom: '6px',
+              fontFamily: 'var(--font-display)',
+              fontSize: 'clamp(24px, 7vw, 30px)',
+              fontWeight: '800',
+              letterSpacing: '-0.5px', lineHeight: '1.1', marginBottom: '8px',
             }}>
               {tab === 'signup' ? 'Create your account' : 'Welcome back'}
             </h1>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
               {tab === 'signup'
                 ? 'Every account starts fresh. Your progress is yours.'
                 : 'Your streak and XP are waiting for you.'}
@@ -398,7 +376,6 @@ export function Auth() {
 
             <form onSubmit={handleSubmit} style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
-              {/* Success */}
               {success && (
                 <div style={{
                   padding: '11px 13px', borderRadius: '8px',
@@ -409,7 +386,6 @@ export function Auth() {
                 </div>
               )}
 
-              {/* Error */}
               {error && (
                 <div style={{
                   padding: '11px 13px', borderRadius: '8px',
@@ -439,7 +415,6 @@ export function Auth() {
                 />
               </div>
 
-              {/* Password with visibility + strength */}
               <PasswordField
                 label="PASSWORD"
                 value={password}
@@ -449,7 +424,6 @@ export function Auth() {
                 showStrength={tab === 'signup'}
               />
 
-              {/* Confirm password (signup) */}
               {tab === 'signup' && (
                 <PasswordField
                   label="CONFIRM PASSWORD"
@@ -460,7 +434,6 @@ export function Auth() {
                 />
               )}
 
-              {/* Submit */}
               <button
                 type="submit"
                 className="btn-primary"
@@ -480,13 +453,13 @@ export function Auth() {
                 )}
               </button>
 
-              {/* Switch tab */}
               <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
                 {tab === 'signup' ? 'Already have an account? ' : "Don't have an account? "}
                 <button
                   type="button"
                   className="btn-text"
                   onClick={() => switchTab(tab === 'signup' ? 'login' : 'signup')}
+                  style={{ fontSize: '12px', minHeight: 'auto' }}
                 >
                   {tab === 'signup' ? 'Sign in' : 'Sign up free'}
                 </button>
@@ -502,7 +475,6 @@ export function Auth() {
               padding: '12px 14px',
               background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px',
             }}>
-              {/* Mini diamond icon */}
               <svg width="22" height="22" viewBox="0 0 32 32" fill="none" style={{ flexShrink: 0 }}>
                 <defs>
                   <linearGradient id="ach-c" x1="0" y1="0" x2="1" y2="1">

@@ -1,10 +1,25 @@
+import type React from 'react';
 import { useStore } from '../store/useStore';
 import { RadiantLogo } from '../components/RadiantLogo';
+import { BoltIcon, TargetIcon } from '../components/AreaIcon';
+import { FlameIcon } from '../components/FlameIcon';
 
-const FEATURES = [
-  { icon: '⚡', title: '2 minutes a day', desc: 'Short, focused lessons that fit into any schedule — no excuses.' },
-  { icon: '🎯', title: 'Visual learning', desc: 'Every concept explained through interactive, animated SVG diagrams.' },
-  { icon: '🔥', title: 'Streak system', desc: 'Daily habits compound into real technical depth over time.' },
+const FEATURES: { icon: React.ReactNode; title: string; desc: string }[] = [
+  {
+    icon: <BoltIcon size={20} color="var(--accent)" strokeWidth={1.5} />,
+    title: '2 minutes a day',
+    desc: 'Short, focused lessons that fit into any schedule — no excuses.',
+  },
+  {
+    icon: <TargetIcon size={20} color="var(--accent)" strokeWidth={1.5} />,
+    title: 'Visual learning',
+    desc: 'Every concept explained through interactive, animated SVG diagrams.',
+  },
+  {
+    icon: <FlameIcon size={20} animated={false} />,
+    title: 'Streak system',
+    desc: 'Daily habits compound into real technical depth over time.',
+  },
 ];
 
 const TOPIC_PILLS = ['HTTP', 'Neural Networks', 'Binary Search', 'Docker', 'REST APIs', 'TLS/HTTPS', 'Big O', 'Transformers', 'DOM', 'CSS Cascade'];
@@ -28,7 +43,7 @@ export function Landing() {
         pointerEvents: 'none',
       }} />
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: '480px', margin: '0 auto', padding: '0 22px' }}>
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: '480px', margin: '0 auto', padding: '0 16px' }}>
         {/* Nav */}
         <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 0 0' }}>
           <RadiantLogo size={28} textSize={17} />
@@ -47,7 +62,7 @@ export function Landing() {
         </nav>
 
         {/* Hero */}
-        <div style={{ paddingTop: '68px', paddingBottom: '44px', textAlign: 'center' }}>
+        <div style={{ paddingTop: 'clamp(44px, 10vw, 68px)', paddingBottom: '40px', textAlign: 'center' }}>
           {/* Pill */}
           <div className="anim-slide-up" style={{
             display: 'inline-flex', alignItems: 'center', gap: '7px',
@@ -118,7 +133,7 @@ export function Landing() {
               <div style={{
                 width: '40px', height: '40px', borderRadius: '10px', flexShrink: 0,
                 background: 'var(--accent-dim)', border: '1px solid rgba(229,62,62,0.15)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {f.icon}
               </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { LEARNING_AREAS, getLevel } from '../data/content';
 import { useStore } from '../store/useStore';
 import { StreakBadge } from '../components/FlameIcon';
+import { AreaIcon } from '../components/AreaIcon';
 
 // ── Path layout constants ────────────────────────────────────────────────────
 // SVG viewBox is 100 units wide (= 100% of container)
@@ -55,7 +56,8 @@ function CheckIcon({ color = '#22C55E' }: { color?: string }) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export function Dashboard() {
-  const { xp, streak, completedLessons, selectedAreas, startLesson, user } = useStore();
+  const { xp, streak, completedLessons, selectedAreas, startLesson, user, lessonDates } = useStore();
+  const hasLessonToday = lessonDates.includes(new Date().toISOString().split('T')[0]);
 
   const { level, name: levelName, nextLevelXp, currentLevelXp } = getLevel(xp);
   const xpInLevel  = xp - currentLevelXp;
@@ -86,10 +88,13 @@ export function Dashboard() {
       <div style={{ maxWidth: '480px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div style={{ padding: '22px 20px 14px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-            <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: '3px' }}>
+        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', gap: '12px' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{
+                fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: '3px',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
                 {user?.email ?? 'Explorer'}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -105,7 +110,7 @@ export function Dashboard() {
                 </span>
               </div>
             </div>
-            <StreakBadge count={streak} />
+            <StreakBadge count={streak} animated={hasLessonToday} />
           </div>
 
           <div className="progress-track" style={{ marginBottom: '5px' }}>
@@ -119,9 +124,9 @@ export function Dashboard() {
 
         {/* ── Topic tabs ──────────────────────────────────────────────────── */}
         {areas.length > 0 && (
-          <div style={{
-            display: 'flex', gap: '8px', overflowX: 'auto', padding: '12px 20px',
-            borderBottom: '1px solid var(--border)', scrollbarWidth: 'none',
+          <div className="scroll-x" style={{
+            gap: '8px', padding: '12px 20px',
+            borderBottom: '1px solid var(--border)',
           }}>
             {areas.map(area => {
               const isActive = area.id === activeAreaId;
@@ -139,7 +144,12 @@ export function Dashboard() {
                     transition: 'all 0.2s',
                   }}
                 >
-                  <span style={{ fontSize: '14px' }}>{area.icon}</span>
+                  <AreaIcon
+                    name={area.icon}
+                    size={16}
+                    color={isActive ? 'var(--accent)' : 'var(--text-muted)'}
+                    strokeWidth={1.6}
+                  />
                   <span style={{
                     fontSize: '12px', fontWeight: isActive ? '600' : '400',
                     color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
@@ -193,7 +203,6 @@ export function Dashboard() {
               {/* Lesson nodes */}
               {lessons.map((lesson, i) => {
                 const pos        = positions[i];
-                const isLeft     = i % 2 === 0;
                 const isCompleted = completedLessons.includes(lesson.id);
                 const isLocked   = i > 0 && !completedLessons.includes(lessons[i - 1].id);
                 const isAvailable = !isCompleted && !isLocked;

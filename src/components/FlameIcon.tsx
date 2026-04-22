@@ -1,9 +1,10 @@
 interface FlameIconProps {
   size?: number;
   animated?: boolean;
+  dim?: boolean;
 }
 
-export function FlameIcon({ size = 20, animated = false }: FlameIconProps) {
+export function FlameIcon({ size = 20, animated = false, dim = false }: FlameIconProps) {
   return (
     <svg
       width={size}
@@ -11,7 +12,11 @@ export function FlameIcon({ size = 20, animated = false }: FlameIconProps) {
       viewBox="0 0 20 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      style={animated ? { animation: 'flame 1.8s ease-in-out infinite' } : undefined}
+      style={{
+        ...(animated && !dim ? { animation: 'flame 1.8s ease-in-out infinite' } : undefined),
+        ...(dim ? { filter: 'grayscale(1) brightness(0.55)', opacity: 0.35 } : undefined),
+        transition: 'filter 0.6s ease, opacity 0.6s ease',
+      }}
     >
       <defs>
         <linearGradient id="flame-outer" x1="10" y1="0" x2="10" y2="24" gradientUnits="userSpaceOnUse">
@@ -47,7 +52,8 @@ export function FlameIcon({ size = 20, animated = false }: FlameIconProps) {
 }
 
 // Compact streak badge: flame + count
-export function StreakBadge({ count }: { count: number }) {
+export function StreakBadge({ count, animated }: { count: number; animated?: boolean }) {
+  const isAnimated = animated ?? count > 0;
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: '5px',
@@ -55,7 +61,7 @@ export function StreakBadge({ count }: { count: number }) {
       border: '1px solid rgba(249,115,22,0.22)',
       borderRadius: '20px', padding: '5px 11px 5px 7px',
     }}>
-      <FlameIcon size={16} animated={count > 0} />
+      <FlameIcon size={16} animated={isAnimated} dim={!isAnimated && count > 0} />
       <span style={{
         fontFamily: 'var(--font-mono)', fontWeight: '700',
         fontSize: '13px', color: '#F97316',

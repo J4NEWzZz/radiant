@@ -1,6 +1,7 @@
 import { LEARNING_AREAS } from '../data/content';
 import { useStore } from '../store/useStore';
 import { RadiantLogo } from '../components/RadiantLogo';
+import { AreaIcon } from '../components/AreaIcon';
 
 export function Onboarding() {
   const { selectedAreas, toggleArea, finishOnboarding, user } = useStore();
@@ -16,7 +17,7 @@ export function Onboarding() {
         pointerEvents: 'none',
       }} />
 
-      <div style={{ maxWidth: '480px', margin: '0 auto', padding: '32px 22px 130px', position: 'relative', zIndex: 1 }}>
+      <div style={{ maxWidth: '480px', margin: '0 auto', padding: '28px 16px 130px', position: 'relative', zIndex: 1 }}>
         {/* Logo */}
         <div style={{ marginBottom: '40px' }}>
           <RadiantLogo size={26} textSize={16} />
@@ -84,9 +85,14 @@ export function Onboarding() {
                   background: isSelected ? 'rgba(229,62,62,0.15)' : 'var(--surface)',
                   border: `1px solid ${isSelected ? 'rgba(229,62,62,0.3)' : 'var(--border)'}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '20px', transition: 'all 0.2s',
+                  transition: 'all 0.2s',
                 }}>
-                  {area.icon}
+                  <AreaIcon
+                    name={area.icon}
+                    size={22}
+                    color={isSelected ? 'var(--accent)' : 'var(--text-muted)'}
+                    strokeWidth={1.5}
+                  />
                 </div>
 
                 <div style={{

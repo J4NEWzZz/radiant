@@ -63,7 +63,7 @@ export function Navigation() {
           : 'rgba(255,255,255,0.95)',
         backdropFilter: 'blur(16px)',
         borderTop: '1px solid var(--border)',
-        padding: '8px 0 24px',
+        padding: '8px 0 max(24px, env(safe-area-inset-bottom))',
       }}>
         <div style={{
           maxWidth: '480px', margin: '0 auto',

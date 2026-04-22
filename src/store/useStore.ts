@@ -1,180 +1,239 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { supabase, isSupabaseConfigured, fetchProfile, createProfile, updateProfile } from '../lib/supabase';
+import {
+  supabase, isSupabaseConfigured,
+  fetchProfile, createProfile, updateProfile,
+} from '../lib/supabase';
 import type { UserProfile } from '../lib/supabase';
+import {
+  ACHIEVEMENTS, MEDAL_TIERS,
+  buildStatsSnapshot, computeEarnedTier, getCurrentTier,
+  migrateAchievements, type MedalTier,
+} from '../data/content';
 
-export type Screen = 'landing' | 'auth' | 'onboarding' | 'dashboard' | 'lesson' | 'profile' | 'achievements';
+export type Screen =
+  | 'landing' | 'auth' | 'onboarding' | 'dashboard'
+  | 'lesson'  | 'profile' | 'achievements';
 export type Theme = 'dark' | 'light';
 
-interface AuthUser {
-  id: string;
-  email: string;
-}
+interface AuthUser { id: string; email: string }
 
 interface AppState {
-  // Navigation
   screen: Screen;
-  pendingLessonId: string | null; // lesson to open after auth
-
-  // Auth
+  pendingLessonId: string | null;
   user: AuthUser | null;
   authLoading: boolean;
-
-  // Profile data (mirrors DB)
   xp: number;
   streak: number;
   selectedAreas: string[];
   completedLessons: string[];
   achievements: string[];
+  lessonDates: string[];
   currentLessonId: string | null;
-
-  // UI
   theme: Theme;
-  pendingAchievements: string[]; // earned achievements waiting to be shown as popup
+  pendingAchievements: string[];
+  pinnedAchievements: string[];
 
-  // Actions — navigation
-  setScreen: (screen: Screen) => void;
+  setScreen: (s: Screen) => void;
   clearPendingAchievement: () => void;
-
-  // Actions — auth
+  togglePinAchievement: (id: string) => void;
   signUp: (email: string, password: string) => Promise<string | null>;
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   initAuth: () => Promise<void>;
-
-  // Actions — data
   toggleArea: (areaId: string) => Promise<void>;
   startLesson: (lessonId: string) => void;
   completeLesson: (lessonId: string, xpReward: number) => Promise<void>;
   finishOnboarding: () => Promise<void>;
-
-  // Actions — UI
   toggleTheme: () => void;
 }
 
-// ── Helper: load profile into store ────────────────────────────────────────
-function applyProfile(profile: UserProfile) {
+// ── Date helpers ──────────────────────────────────────────────────────────────
+
+function getToday(): string {
+  return new Date().toISOString().split('T')[0];
+}
+function getYesterday(): string {
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+function resolveStreak(streak: number, lastLessonDate: string | null): number {
+  if (!lastLessonDate || streak === 0) return 0;
+  return (lastLessonDate === getToday() || lastLessonDate === getYesterday()) ? streak : 0;
+}
+function nextStreak(streak: number, lastLessonDate: string | null): number {
+  const t = getToday();
+  if (lastLessonDate === t)              return streak;
+  if (lastLessonDate === getYesterday()) return streak + 1;
+  return 1;
+}
+
+// ── Achievement helpers ───────────────────────────────────────────────────────
+
+function computeNewAchievements(
+  current: string[],
+  snap: ReturnType<typeof buildStatsSnapshot>,
+): { updated: string[]; newlyEarned: string[] } {
+  let updated = [...current];
+  const newlyEarned: string[] = [];
+  const metaIds = new Set(['achievement-hunter', 'overachiever', 'grand-master']);
+
+  for (const pass of [
+    ACHIEVEMENTS.filter(a => !metaIds.has(a.id)),
+    ACHIEVEMENTS.filter(a =>  metaIds.has(a.id)),
+  ]) {
+    const s = pass.some(a => metaIds.has(a.id)) ? { ...snap, achievementsRaw: updated } : snap;
+    for (const ach of pass) {
+      const earned = computeEarnedTier(ach, s);
+      if (!earned) continue;
+      const curTier = getCurrentTier(ach.id, updated);
+      const curIdx  = curTier ? MEDAL_TIERS.indexOf(curTier) : -1;
+      const newIdx  = MEDAL_TIERS.indexOf(earned);
+      if (newIdx > curIdx) {
+        updated = updated.filter(a => !a.startsWith(`${ach.id}:`));
+        updated.push(`${ach.id}:${earned}`);
+        for (let t = curIdx + 1; t <= newIdx; t++) {
+          const tier = MEDAL_TIERS[t] as MedalTier;
+          if (ach.tiers.includes(tier)) newlyEarned.push(`${ach.id}:${tier}`);
+        }
+      }
+    }
+  }
+  return { updated, newlyEarned };
+}
+
+// ── Profile mapping ───────────────────────────────────────────────────────────
+
+function mapProfile(p: UserProfile) {
+  const achievements   = migrateAchievements(p.achievements ?? []);
+  const streak         = resolveStreak(p.streak, p.last_lesson_date);
   return {
-    xp: profile.xp,
-    streak: profile.streak,
-    selectedAreas: profile.selected_areas,
-    completedLessons: profile.completed_lessons,
-    achievements: profile.achievements,
+    xp:                 p.xp               ?? 0,
+    streak,
+    selectedAreas:      p.selected_areas   ?? [],
+    completedLessons:   p.completed_lessons ?? [],
+    achievements,
+    lessonDates:        p.lesson_dates      ?? [],
+    streakExpired:      streak !== p.streak,
+    achievementsFixed:  achievements.join(',') !== (p.achievements ?? []).join(','),
+    rawAchievements:    achievements,
   };
 }
 
-// ── Apply theme to <html> ───────────────────────────────────────────────────
-function applyTheme(theme: Theme) {
-  document.documentElement.setAttribute('data-theme', theme);
+function applyTheme(t: Theme) {
+  document.documentElement.setAttribute('data-theme', t);
 }
 
-// ── Store ───────────────────────────────────────────────────────────────────
+// ── Shared: load a user profile into the store ────────────────────────────────
+
+async function loadProfileIntoStore(
+  userId: string,
+  email: string,
+  set: (partial: Partial<AppState>) => void,
+  pendingLessonId: string | null,
+) {
+  let profile = await fetchProfile(userId);
+  if (!profile) profile = await createProfile(userId, email);
+
+  const m = profile ? mapProfile(profile) : null;
+  const hasAreas = (m?.selectedAreas.length ?? 0) > 0;
+
+  set({
+    user:             { id: userId, email },
+    xp:               m?.xp               ?? 0,
+    streak:           m?.streak            ?? 0,
+    selectedAreas:    m?.selectedAreas     ?? [],
+    completedLessons: m?.completedLessons  ?? [],
+    achievements:     m?.achievements      ?? [],
+    lessonDates:      m?.lessonDates       ?? [],
+    screen:           pendingLessonId ? 'lesson'
+                    : hasAreas       ? 'dashboard'
+                    :                  'onboarding',
+    currentLessonId:  pendingLessonId ?? null,
+    pendingLessonId:  null,
+    authLoading:      false,
+  });
+
+  // Write-back corrections (fire-and-forget)
+  if (m?.streakExpired)    updateProfile(userId, { streak: m.streak });
+  if (m?.achievementsFixed) updateProfile(userId, { achievements: m.rawAchievements });
+}
+
+// ── Store ─────────────────────────────────────────────────────────────────────
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
-      // Defaults — all clean, no pre-seeded data
-      screen: 'landing',
-      pendingLessonId: null,
-      user: null,
-      authLoading: true,
-      xp: 0,
-      streak: 0,
-      selectedAreas: [],
-      completedLessons: [],
-      achievements: [],
-      currentLessonId: null,
-      theme: 'dark',
+      screen:              'landing',
+      pendingLessonId:     null,
+      user:                null,
+      authLoading:         true,
+      xp:                  0,
+      streak:              0,
+      selectedAreas:       [],
+      completedLessons:    [],
+      achievements:        [],
+      lessonDates:         [],
+      currentLessonId:     null,
+      theme:               'dark',
       pendingAchievements: [],
+      pinnedAchievements:  [],
 
       setScreen: (screen) => set({ screen }),
-      clearPendingAchievement: () => set(s => ({ pendingAchievements: s.pendingAchievements.slice(1) })),
 
-      // ── Auth ──────────────────────────────────────────────────────────────
+      clearPendingAchievement: () =>
+        set(s => ({ pendingAchievements: s.pendingAchievements.slice(1) })),
+
+      togglePinAchievement: (id) => {
+        const { pinnedAchievements, achievements } = get();
+        if (!achievements.some(a => a.startsWith(`${id}:`))) return;
+        set({
+          pinnedAchievements: pinnedAchievements.includes(id)
+            ? pinnedAchievements.filter(p => p !== id)
+            : pinnedAchievements.length < 3
+              ? [...pinnedAchievements, id]
+              : pinnedAchievements,
+        });
+      },
+
+      // ── Auth ───────────────────────────────────────────────────────────────
 
       signUp: async (email, password) => {
-        if (!isSupabaseConfigured) {
-          return 'Supabase is not configured. Copy .env.example to .env and add your project credentials.';
-        }
+        if (!isSupabaseConfigured) return 'Supabase is not configured.';
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) return error.message;
         if (!data.user) return 'Sign-up failed — please try again.';
+        // data.session is null when email confirmation is required
+        if (!data.session) return null;
 
-        // Supabase may require email confirmation (default on new projects).
-        // A DB trigger handles profile creation server-side so we never need
-        // an active client session here.
-        //
-        // If email confirmation is DISABLED, data.session is present and we
-        // can sign the user in immediately.
-        if (data.session) {
-          // Confirmed immediately — profile already created by trigger.
-          // Give the trigger a moment to complete, then fetch.
-          let profile = await fetchProfile(data.user.id);
-          // Fallback: create manually in case trigger isn't set up yet.
-          if (!profile) profile = await createProfile(data.user.id, email);
-          set({
-            user: { id: data.user.id, email },
-            screen: 'onboarding',
-            pendingLessonId: null,
-            achievements: ['radiant-starter'],
-            ...(profile ? applyProfile(profile) : {}),
-          });
-          return null; // success — App navigates to onboarding
-        }
-
-        // Email confirmation required — return null (success).
-        // Auth.tsx will show the "check your email" message.
+        await loadProfileIntoStore(data.user.id, email, set, null);
+        set({ screen: 'onboarding', pendingAchievements: ['radiant-one:iron'] });
         return null;
       },
 
       signIn: async (email, password) => {
-        if (!isSupabaseConfigured) {
-          return 'Supabase is not configured. Copy .env.example to .env and add your project credentials.';
-        }
+        if (!isSupabaseConfigured) return 'Supabase is not configured.';
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) return error.message;
-        const authUser = data.user;
-        if (!authUser) return 'Sign-in failed — please try again.';
-
-        // Fetch profile (created by DB trigger on signup).
-        // Fall back to manual creation in case the trigger isn't set up.
-        let profile = await fetchProfile(authUser.id);
-        if (!profile) {
-          profile = await createProfile(authUser.id, email);
-        }
+        if (!data.user) return 'Sign-in failed — please try again.';
 
         const pending = get().pendingLessonId;
-        const hasAreas = (profile?.selected_areas.length ?? 0) > 0;
-
-        const base = {
-          user: { id: authUser.id, email },
-          achievements: ['radiant-starter'] as string[],
-          ...(profile ? applyProfile(profile) : {}),
-        };
-        if (pending) {
-          set({ ...base, currentLessonId: pending, screen: 'lesson', pendingLessonId: null });
-        } else {
-          set({ ...base, screen: hasAreas ? 'dashboard' : 'onboarding' });
-        }
+        await loadProfileIntoStore(data.user.id, email, set, pending);
         return null;
       },
 
       signOut: async () => {
         await supabase.auth.signOut();
         set({
-          user: null,
-          screen: 'landing',
-          xp: 0,
-          streak: 0,
-          selectedAreas: [],
-          completedLessons: [],
-          achievements: [],
-          currentLessonId: null,
-          pendingLessonId: null,
+          user: null, screen: 'landing', authLoading: false,
+          xp: 0, streak: 0, selectedAreas: [], completedLessons: [],
+          achievements: [], lessonDates: [], currentLessonId: null,
+          pendingLessonId: null, pendingAchievements: [],
         });
       },
 
+      // initAuth: called once on app mount — restores session from localStorage
       initAuth: async () => {
-        // Apply stored theme first
         applyTheme(get().theme);
 
         if (!isSupabaseConfigured) {
@@ -182,31 +241,56 @@ export const useStore = create<AppState>()(
           return;
         }
 
-        // Check existing session on app load
-        const { data: { session } } = await supabase.auth.getSession();
+        // getSession() reads the stored session from localStorage synchronously
+        // (no network request unless the token needs refreshing).
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('getSession:', error.message);
+          set({ authLoading: false });
+          return;
+        }
+
         if (session?.user) {
-          const profile = await fetchProfile(session.user.id);
-          const hasAreas = (profile?.selected_areas.length ?? 0) > 0;
-          set({
-            user: { id: session.user.id, email: session.user.email ?? '' },
-            screen: hasAreas ? 'dashboard' : 'onboarding',
-            authLoading: false,
-            achievements: ['radiant-starter'],
-            ...(profile ? applyProfile(profile) : {}),
-          });
+          const pending = get().pendingLessonId;
+          await loadProfileIntoStore(
+            session.user.id,
+            session.user.email ?? '',
+            set,
+            pending,
+          );
         } else {
           set({ authLoading: false });
         }
 
-        // Listen for sign-out
-        supabase.auth.onAuthStateChange((event) => {
+        // Keep listening for sign-out and token refresh
+        supabase.auth.onAuthStateChange(async (event, session) => {
           if (event === 'SIGNED_OUT') {
-            set({ user: null, screen: 'landing' });
+            set({
+              user: null, screen: 'landing', authLoading: false,
+              xp: 0, streak: 0, selectedAreas: [], completedLessons: [],
+              achievements: [], lessonDates: [], currentLessonId: null,
+              pendingLessonId: null, pendingAchievements: [],
+            });
+          }
+          // Reload profile when a new sign-in or token refresh brings a
+          // different user (e.g. after email confirmation redirect)
+          if (
+            (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') &&
+            session?.user &&
+            get().user?.id !== session.user.id
+          ) {
+            await loadProfileIntoStore(
+              session.user.id,
+              session.user.email ?? '',
+              set,
+              get().pendingLessonId,
+            );
           }
         });
       },
 
-      // ── Data actions ──────────────────────────────────────────────────────
+      // ── Data ───────────────────────────────────────────────────────────────
 
       toggleArea: async (areaId) => {
         const state = get();
@@ -221,11 +305,7 @@ export const useStore = create<AppState>()(
 
       startLesson: (lessonId) => {
         const { user } = get();
-        if (!user) {
-          // Not logged in — require auth first, then open lesson
-          set({ pendingLessonId: lessonId, screen: 'auth' });
-          return;
-        }
+        if (!user) { set({ pendingLessonId: lessonId, screen: 'auth' }); return; }
         set({ currentLessonId: lessonId, screen: 'lesson' });
       },
 
@@ -235,44 +315,51 @@ export const useStore = create<AppState>()(
           set({ screen: 'dashboard', currentLessonId: null });
           return;
         }
-        const newCompleted = [...state.completedLessons, lessonId];
-        const newXp = state.xp + xpReward;
-        const newAchievements = [...state.achievements];
 
-        // Grant achievements based on new state
-        const achievementConditions: Array<{ id: string; check: () => boolean }> = [
-          { id: 'first-lesson', check: () => newCompleted.length >= 1 },
-          { id: 'five-lessons',  check: () => newCompleted.length >= 5 },
-          { id: 'ten-lessons',   check: () => newCompleted.length >= 10 },
-          { id: 'all-lessons',   check: () => newCompleted.length >= 13 },
-          { id: 'xp-300',        check: () => newXp >= 300 },
-          { id: 'xp-1000',       check: () => newXp >= 1000 },
-          { id: 'explorer',      check: () => state.selectedAreas.length >= 3 },
-          { id: 'polymath',      check: () => state.selectedAreas.length >= 6 },
-        ];
-        const newlyEarned: string[] = [];
-        for (const { id, check } of achievementConditions) {
-          if (!newAchievements.includes(id) && check()) {
-            newAchievements.push(id);
-            newlyEarned.push(id);
-          }
-        }
+        const today          = getToday();
+        const newCompleted   = [...state.completedLessons, lessonId];
+        const newXp          = state.xp + xpReward;
+        const lastDate       = state.lessonDates.at(-1) ?? null;
+        const newStreak      = nextStreak(resolveStreak(state.streak, lastDate), lastDate);
+        const dateSet        = new Set(state.lessonDates);
+        dateSet.add(today);
+        const newLessonDates = Array.from(dateSet).slice(-365);
 
-        set({
+        const snap = buildStatsSnapshot({
+          xp:               newXp,
+          streak:           newStreak,
           completedLessons: newCompleted,
-          xp: newXp,
-          achievements: newAchievements,
-          pendingAchievements: newlyEarned,
-          screen: 'dashboard',
-          currentLessonId: null,
+          selectedAreas:    state.selectedAreas,
+          achievements:     state.achievements,
         });
+        const { updated: newAchievements, newlyEarned } =
+          computeNewAchievements(state.achievements, snap);
+
+        // Update local state immediately so UI feels instant
+        set({
+          completedLessons:    newCompleted,
+          xp:                  newXp,
+          streak:              newStreak,
+          lessonDates:         newLessonDates,
+          achievements:        newAchievements,
+          pendingAchievements: newlyEarned,
+          screen:              'dashboard',
+          currentLessonId:     null,
+        });
+
         if (state.user) {
+          // Save core data — these columns always exist in the schema
           await updateProfile(state.user.id, {
             completed_lessons: newCompleted,
-            xp: newXp,
-            achievements: newAchievements,
-            last_lesson_date: new Date().toISOString().split('T')[0],
+            xp:                newXp,
+            streak:            newStreak,
+            last_lesson_date:  today,
+            achievements:      newAchievements,
+            selected_areas:    state.selectedAreas, // keep in sync
           });
+
+          // lesson_dates is optional (needs migration SQL) — fire-and-forget
+          updateProfile(state.user.id, { lesson_dates: newLessonDates });
         }
       },
 
@@ -280,22 +367,27 @@ export const useStore = create<AppState>()(
         const state = get();
         set({ screen: 'dashboard' });
         if (state.user) {
-          await updateProfile(state.user.id, { selected_areas: state.selectedAreas });
+          // Save the complete profile state so everything is in Supabase
+          await updateProfile(state.user.id, {
+            selected_areas:    state.selectedAreas,
+            xp:                state.xp,
+            streak:            state.streak,
+            completed_lessons: state.completedLessons,
+            achievements:      state.achievements,
+          });
         }
       },
 
-      // ── Theme ─────────────────────────────────────────────────────────────
-
       toggleTheme: () => {
-        const newTheme: Theme = get().theme === 'dark' ? 'light' : 'dark';
-        applyTheme(newTheme);
-        set({ theme: newTheme });
+        const t: Theme = get().theme === 'dark' ? 'light' : 'dark';
+        applyTheme(t);
+        set({ theme: t });
       },
     }),
     {
       name: 'radiant-ui',
-      // Only persist theme preference — auth/profile comes from Supabase
-      partialize: (state) => ({ theme: state.theme }),
+      // Only persist UI preferences locally — all profile data lives in Supabase
+      partialize: (s) => ({ theme: s.theme, pinnedAchievements: s.pinnedAchievements }),
     }
   )
 );
