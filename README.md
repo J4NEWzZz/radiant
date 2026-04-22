@@ -1,73 +1,180 @@
-# React + TypeScript + Vite
+# Radiant 💎
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+<p align="center">
+  <b>Learn technical concepts in 2 minutes a day.</b><br/>
+  A visual, interactive learning platform — inspired by Duolingo, built for tech.
+</p>
 
-Currently, two official plugins are available:
+<p align="center">
+  <img src="https://img.shields.io/badge/status-in%20development-orange" />
+  <img src="https://img.shields.io/badge/platform-web-blue" />
+  <img src="https://img.shields.io/badge/stack-React%20%7C%20TypeScript-61dafb" />
+  <img src="https://img.shields.io/badge/license-MIT-green" />
+</p>
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## ✨ Overview
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Radiant** is a modern learning platform designed to make technical knowledge:
+- ⚡ fast to consume  
+- 🎨 visually intuitive  
+- 🧠 easy to retain  
 
-## Expanding the ESLint configuration
+Instead of long tutorials, Radiant delivers **bite-sized lessons** that compound into real understanding over time.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+> 💡 _2 minutes a day. No effort. Real progress._
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+---
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🧠 Core Idea
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Radiant transforms complex concepts into:
+- Interactive visualizations  
+- Micro-lessons  
+- Daily habits  
+
+
+---
+
+## 📚 Learning Areas
+
+Users choose their interests during onboarding:
+
+- 🌐 **Web Development**
+- 🤖 **AI & Machine Learning**
+- 📱 **App Development**
+- 🧩 **Computer Science** 
+- 🔐 **Cybersecurity**
+- ☁️ **Cloud & DevOps**
+
+  Starting of with the basics, advanced ones coming soon
+
+---
+
+## 🎯 Lesson Structure
+
+Each lesson is designed for maximum clarity and minimal time:
+
+```
+1. Short introduction (2–3 sentences)
+2. Interactive SVG visualization
+3. Step-by-step explanation (3 steps)
+4. XP reward
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 🎮 Gamification System
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Radiant keeps users engaged through:
+
+- 🔥 **Daily Streaks**  
+  Stay consistent or lose your streak  
+
+- ⚡ **XP System**  
+  Earn XP per lesson — harder lessons = more XP  
+
+- 🏆 **Achievements**
+  - First Lesson
+  - 3 Day Streak
+  - 100 XP
+  - Explorer (multiple areas)
+  - Weekly Hero (7-day streak)
+
+- 📈 **Level System**  
+  Your XP defines your level  
+
+---
+
+## 💰 Monetization
+
+### 🆓 Free Plan
+- Max. 3 lessons per day
+- Limited learning
+
+### 💎 Pro Plan
+- All learning areas  
+- Unlimited lessons  
+- Advanced statistics  
+
+---
+
+## 🛠 Tech Stack
+
+### Frontend
+- ⚛️ React + TypeScript  
+- 🎨 Tailwind CSS  
+
+### Backend (planned)
+- 🔐 Supabase  
+
+---
+
+## 🎨 Design Principles
+
+- Minimal & clean — no overdesign  
+- Visual-first learning  
+- Mobile-first experience  
+- Dark mode from day one  
+
+---
+
+## 🧩 User Flow
+
 ```
+Open app → Start lesson → Learn visually → Gain XP → Build streak - Get Achievements
+```
+
+Typical session time: **~2 minutes**
+
+---
+
+## 🚧 Roadmap
+
+### MVP
+- [ ] Lesson flow UI  
+- [ ] SVG visualization engine  
+- [ ] State management setup  
+- [ ] Basic gamification (XP + streak)  
+
+### Next
+- [ ] Authentication  
+- [ ] Persistence (Supabase/Firebase)  
+- [ ] Multiple learning paths  
+- [ ] Achievement system  
+
+### Future
+- [ ] Community features  
+- [ ] Custom learning paths  
+- [ ] AI-generated lessons  
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome!
+
+Ideas we especially love:
+- New learning concepts  
+- Visual explanations  
+- UX improvements  
+
+---
+
+## 📜 License
+
+MIT License
+
+---
+
+## 💡 Why "Radiant"?
+
+> Knowledge doesn’t come instantly —  
+> it builds up over time… until it **radiates**.
+
+---
+
+<p align="center">
+  Made with curiosity ⚡
+</p>
